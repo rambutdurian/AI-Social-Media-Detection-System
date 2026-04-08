@@ -1,0 +1,353 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.wrap { font-family: var(--font-sans); padding: 1rem 0 2rem; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.tab { font-size: 12px; padding: 5px 14px; border-radius: 20px; border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.tab.on { background: #185FA5; color: #E6F1FB; border-color: #185FA5; }
+.panel { display: none; }
+.panel.on { display: block; }
+.ds-card { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1rem 1.25rem; margin-bottom: 12px; background: var(--color-background-primary); }
+.ds-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.ds-name { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+.ds-meta { font-size: 12px; color: var(--color-text-secondary); line-height: 1.6; margin-bottom: 8px; }
+.ds-bullets { font-size: 12px; color: var(--color-text-secondary); padding-left: 14px; line-height: 1.8; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.b-green { background: #EAF3DE; color: #27500A; }
+.b-blue { background: #E6F1FB; color: #0C447C; }
+.b-amber { background: #FAEEDA; color: #633806; }
+.b-purple { background: #EEEDFE; color: #3C3489; }
+.b-teal { background: #E1F5EE; color: #085041; }
+.b-red { background: #FCEBEB; color: #791F1F; }
+.step-card { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1rem 1.25rem; margin-bottom: 10px; background: var(--color-background-primary); display: flex; gap: 14px; }
+.step-num { width: 28px; height: 28px; border-radius: 50%; background: #E6F1FB; color: #0C447C; font-size: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.step-body { flex: 1; }
+.step-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 4px; }
+.step-desc { font-size: 12px; color: var(--color-text-secondary); line-height: 1.6; }
+.code-block { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; font-family: var(--font-mono); font-size: 11px; color: var(--color-text-primary); margin-top: 8px; line-height: 1.7; white-space: pre; overflow-x: auto; border: 0.5px solid var(--color-border-tertiary); }
+.metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-bottom: 1rem; }
+.metric-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px; }
+.metric-name { font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 4px; }
+.metric-desc { font-size: 11px; color: var(--color-text-secondary); line-height: 1.5; }
+.metric-target { font-size: 11px; color: #185FA5; margin-top: 4px; font-weight: 500; }
+.warn-box { background: #FAEEDA; border-radius: var(--border-radius-md); padding: 10px 14px; margin-bottom: 14px; }
+.warn-title { font-size: 12px; font-weight: 500; color: #633806; margin-bottom: 2px; }
+.warn-body { font-size: 12px; color: #854F0B; line-height: 1.5; }
+.cl { list-style: none; }
+.cl li { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 13px; color: var(--color-text-primary); }
+.cl li:last-child { border-bottom: none; }
+.chk { width: 16px; height: 16px; border-radius: 3px; border: 0.5px solid var(--color-border-secondary); flex-shrink: 0; margin-top: 1px; cursor: pointer; display: flex; align-items: center; justify-content: center; background: var(--color-background-primary); }
+.chk.done { background: #185FA5; border-color: #185FA5; }
+.chkmark { width: 8px; height: 5px; border-left: 1.5px solid #E6F1FB; border-bottom: 1.5px solid #E6F1FB; transform: rotate(-45deg) translate(1px,-1px); display: none; }
+.chk.done .chkmark { display: block; }
+.prog-wrap { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px; margin-bottom: 1.25rem; }
+.prog-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--color-text-secondary); margin-bottom: 8px; }
+.prog-track { height: 5px; background: var(--color-border-tertiary); border-radius: 3px; overflow: hidden; }
+.prog-fill { height: 100%; background: #185FA5; border-radius: 3px; transition: width 0.3s; }
+.phase-tag { font-size: 10px; padding: 1px 6px; border-radius: 10px; white-space: nowrap; }
+a.src { font-size: 11px; color: #185FA5; display: inline-block; margin-top: 6px; }
+</style>
+
+<div class="wrap">
+<div class="tabs">
+  <button class="tab on" onclick="show('datasets')">Datasets</button>
+  <button class="tab" onclick="show('pipeline')">Testing pipeline</button>
+  <button class="tab" onclick="show('metrics')">Metrics to report</button>
+  <button class="tab" onclick="show('checklist')">Test checklist</button>
+</div>
+
+<div class="panel on" id="p-datasets">
+  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:1rem;line-height:1.6;">Use datasets in order of priority. Start with #1–2 for your hackathon prototype, then add #3–4 to strengthen your report.</p>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <div class="ds-name">1. FaceForensics++ (FF++)</div>
+      <span class="badge b-green">Start here</span>
+    </div>
+    <div class="ds-meta">1,000 original videos + manipulations via Deepfakes, Face2Face, FaceSwap, NeuralTextures. The gold-standard benchmark used in virtually every detection paper.</div>
+    <ul class="ds-bullets">
+      <li>~977 YouTube source videos with frontal faces</li>
+      <li>3 quality levels: raw, HQ (c23), LQ (c40)</li>
+      <li>Use c23 quality for hackathon — best balance of realism vs file size</li>
+      <li>Requires filling a Google Form to access (academic use)</li>
+    </ul>
+    <a class="src" href="https://github.com/ondyari/FaceForensics">github.com/ondyari/FaceForensics</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <div class="ds-name">2. Celeb-DF v2</div>
+      <span class="badge b-blue">High quality fakes</span>
+    </div>
+    <div class="ds-meta">590 real YouTube videos + 5,639 high-quality deepfake videos of celebrities. Harder to detect than FF++ — tests if your model generalises.</div>
+    <ul class="ds-bullets">
+      <li>Diverse ages, ethnicities, and genders</li>
+      <li>Significantly more realistic than early datasets</li>
+      <li>Widely used for cross-dataset evaluation</li>
+    </ul>
+    <a class="src" href="https://github.com/yuezunli/celeb-deepfakeforensics">github.com/yuezunli/celeb-deepfakeforensics</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <div class="ds-name">3. DFDC — Deepfake Detection Challenge</div>
+      <span class="badge b-amber">Social media focus</span>
+    </div>
+    <div class="ds-meta">Facebook/Meta dataset with 128,154 videos — the largest public deepfake dataset and the most diverse. Specifically designed to reflect social media video conditions.</div>
+    <ul class="ds-bullets">
+      <li>Multiple synthesis methods, varied lighting and angles</li>
+      <li>Available on Kaggle (no form required)</li>
+      <li>Cite: Dolhansky et al. (2020), arXiv:2006.07397</li>
+    </ul>
+    <a class="src" href="https://www.kaggle.com/c/deepfake-detection-challenge/data">kaggle.com — Deepfake Detection Challenge</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <div class="ds-name">4. DeepFake-Eval-2024</div>
+      <span class="badge b-purple">Most realistic (2024)</span>
+    </div>
+    <div class="ds-meta">Real-world data sourced directly from social media in 2024. Includes 44 hrs of video, 56.5 hrs of audio, and 1,975 images across 88 websites in 52 languages.</div>
+    <ul class="ds-bullets">
+      <li>Tests how your model handles modern diffusion-based fakes</li>
+      <li>Warning: state-of-the-art models see up to 50% AUC drop on this vs legacy datasets</li>
+      <li>Use it to honestly report real-world performance</li>
+    </ul>
+    <a class="src" href="https://github.com/nuriachandra/Deepfake-Eval-2024">github.com/nuriachandra/Deepfake-Eval-2024</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <div class="ds-name">5. SDFVD (small-scale, beginner-friendly)</div>
+      <span class="badge b-teal">Quick prototyping</span>
+    </div>
+    <div class="ds-meta">Only 106 videos (53 real, 53 fake). Pre-processed to 720p, 4–5 sec clips. Ideal for rapid testing before scaling up to larger datasets.</div>
+    <ul class="ds-bullets">
+      <li>No GPU required to run full evaluation</li>
+      <li>Available on Mendeley Data (open access)</li>
+      <li>Good for verifying your pipeline works end-to-end first</li>
+    </ul>
+    <a class="src" href="https://data.mendeley.com/datasets/bcmkfgct2s/1">data.mendeley.com — SDFVD</a>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-head">
+      <div class="ds-name">6. HuggingFace — UniDataPro deepfake videos</div>
+      <span class="badge b-teal">Easy download</span>
+    </div>
+    <div class="ds-meta">10,000+ files, 7,000+ people. Face-swapped videos with AI overlays sourced from platforms like MagicHour and FaceSwapVideo. Useful for social media context.</div>
+    <a class="src" href="https://huggingface.co/datasets/UniDataPro/deepfake-videos-dataset">huggingface.co/datasets/UniDataPro/deepfake-videos-dataset</a>
+  </div>
+</div>
+
+<div class="panel" id="p-pipeline">
+  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:1rem;line-height:1.6;">Follow these 6 steps in order. Each step maps to a hackathon criterion.</p>
+
+  <div class="step-card">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <div class="step-title">Download & organise your dataset</div>
+      <div class="step-desc">Start with SDFVD to verify your pipeline, then switch to FF++ c23. Structure your folders exactly like this — your model loader will depend on it.</div>
+      <div class="code-block">dataset/
+├── train/
+│   ├── real/     ← original videos/frames
+│   └── fake/     ← deepfake videos/frames
+├── val/
+│   ├── real/
+│   └── fake/
+└── test/
+    ├── real/
+    └── fake/</div>
+      <div style="margin-top:6px;"><span class="badge b-green">Prototype</span></div>
+    </div>
+  </div>
+
+  <div class="step-card">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <div class="step-title">Frame extraction & face cropping</div>
+      <div class="step-desc">Extract frames from each video (1 frame/sec is enough for prototype). Crop detected faces using MTCNN. Resize to 224×224 for EfficientNet input.</div>
+      <div class="code-block">pip install facenet-pytorch opencv-python
+
+# Extract 1 frame per second, crop face
+import cv2
+from facenet_pytorch import MTCNN
+mtcnn = MTCNN(margin=30, keep_all=False)
+
+cap = cv2.VideoCapture("video.mp4")
+fps = cap.get(cv2.CAP_PROP_FPS)
+frame_idx = 0
+while cap.read()[0]:
+    ret, frame = cap.read()
+    if frame_idx % int(fps) == 0:
+        face = mtcnn(frame)  # returns cropped tensor
+    frame_idx += 1</div>
+      <div style="margin-top:6px;"><span class="badge b-blue">Integration</span></div>
+    </div>
+  </div>
+
+  <div class="step-card">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <div class="step-title">Train / load your detection model</div>
+      <div class="step-desc">For a hackathon, use a pretrained EfficientNet-B4 fine-tuned on FF++. If time is short, DeepfakeBench provides pretrained weights you can load directly.</div>
+      <div class="code-block">from torchvision.models import efficientnet_b4
+import torch.nn as nn
+
+model = efficientnet_b4(pretrained=True)
+# Replace classifier head for binary output
+model.classifier[1] = nn.Linear(
+    model.classifier[1].in_features, 1
+)
+# Fine-tune on your dataset with BCEWithLogitsLoss
+# OR load pretrained weights from DeepfakeBench</div>
+      <div style="margin-top:6px;"><span class="badge b-green">Prototype</span></div>
+    </div>
+  </div>
+
+  <div class="step-card">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <div class="step-title">Run evaluation on your test split</div>
+      <div class="step-desc">Always evaluate on a held-out test set (20% of data). Never evaluate on training data — judges will ask about this. Use an 80/10/10 train/val/test split.</div>
+      <div class="code-block">from sklearn.metrics import (
+    accuracy_score, roc_auc_score,
+    f1_score, confusion_matrix
+)
+import numpy as np
+
+# y_true: ground truth labels (0=real, 1=fake)
+# y_prob: model output probabilities
+# y_pred: thresholded at 0.5
+
+accuracy  = accuracy_score(y_true, y_pred)
+auc       = roc_auc_score(y_true, y_prob)
+f1        = f1_score(y_true, y_pred)
+cm        = confusion_matrix(y_true, y_pred)
+
+print(f"Accuracy: {accuracy:.4f}")
+print(f"AUC-ROC:  {auc:.4f}")
+print(f"F1 Score: {f1:.4f}")</div>
+      <div style="margin-top:6px;"><span class="badge b-green">Prototype</span><span class="badge b-blue" style="margin-left:4px;">Integration</span></div>
+    </div>
+  </div>
+
+  <div class="step-card">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <div class="step-title">Cross-dataset generalisation test</div>
+      <div class="step-desc">Train on FF++, test on Celeb-DF. This proves your model doesn't just memorise one dataset. This is what impresses judges and reviewers — it's what published papers do.</div>
+      <div class="code-block"># Train on FF++ → test on Celeb-DF-v2
+# Report both results in your report:
+#
+# Dataset          AUC     Accuracy
+# FF++ (in-domain) 0.97    95.2%
+# Celeb-DF (cross) 0.82    81.4%   ← cross-dataset
+# DFDC (cross)     0.74    76.1%   ← harder, be honest</div>
+      <div style="margin-top:6px;"><span class="badge b-green">Prototype</span><span class="badge b-teal" style="margin-left:4px;">Market feasibility</span></div>
+    </div>
+  </div>
+
+  <div class="step-card">
+    <div class="step-num">6</div>
+    <div class="step-body">
+      <div class="step-title">End-to-end app test (web upload → result)</div>
+      <div class="step-desc">Upload a real video and a known deepfake through your actual web app. Measure total response time (target: under 5 seconds). Capture screenshots for your slides.</div>
+      <div class="code-block"># Measure end-to-end response time
+import time, requests
+
+start = time.time()
+response = requests.post(
+    "http://localhost:8000/api/detect",
+    files={"video": open("test_fake.mp4", "rb")}
+)
+elapsed = round(time.time() - start, 2)
+print(f"Response time: {elapsed}s")
+print(f"Result: {response.json()}")</div>
+      <div style="margin-top:6px;"><span class="badge b-purple">Usability</span><span class="badge b-blue" style="margin-left:4px;">Integration</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="p-metrics">
+  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:1rem;line-height:1.6;">These are the 4 metrics you must report in both your technical report and slides. All are standard in published deepfake detection research.</p>
+
+  <div class="warn-box">
+    <div class="warn-title">Important: context for your judges</div>
+    <div class="warn-body">State-of-the-art models on DeepFake-Eval-2024 reach ~78% accuracy. If your cross-dataset AUC drops, that is expected and normal — be upfront about it. Judges respect honesty over inflated numbers.</div>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-name">AUC-ROC</div>
+      <div class="metric-desc">Area under the ROC curve. Measures how well the model separates real from fake across all thresholds. Most important metric in papers.</div>
+      <div class="metric-target">Target: above 0.85 on FF++</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-name">Accuracy</div>
+      <div class="metric-desc">% of videos correctly classified. Easy to understand for non-technical judges. Report separately for real and fake classes.</div>
+      <div class="metric-target">Target: above 90% on FF++</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-name">F1 Score</div>
+      <div class="metric-desc">Harmonic mean of precision and recall. Important when your test set is imbalanced (more fakes than real or vice versa).</div>
+      <div class="metric-target">Target: above 0.85</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-name">Response time (app)</div>
+      <div class="metric-desc">Time from video upload to result displayed in the browser. This is a UX metric — directly tied to 20 usability points.</div>
+      <div class="metric-target">Target: under 5 seconds</div>
+    </div>
+  </div>
+
+  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:10px;font-weight:500;">How to present results in your report:</p>
+  <div class="code-block">| Dataset          | Split  | Accuracy | AUC-ROC | F1    |
+|------------------|--------|----------|---------|-------|
+| FF++ c23         | Test   | 95.2%    | 0.974   | 0.951 |
+| Celeb-DF v2      | Cross  | 81.4%    | 0.823   | 0.809 |
+| DFDC             | Cross  | 76.1%    | 0.741   | 0.763 |
+| App (end-to-end) | Manual | —        | —       | 2.8s  |</div>
+</div>
+
+<div class="panel" id="p-checklist">
+  <div class="prog-wrap">
+    <div class="prog-top"><span>Testing readiness</span><span id="ptxt">0 / 16 complete</span></div>
+    <div class="prog-track"><div class="prog-fill" id="pfill" style="width:0%"></div></div>
+  </div>
+  <ul class="cl" id="cl">
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Downloaded at least one dataset (recommend: SDFVD first, then FF++)</span><span class="badge b-green phase-tag">Dataset</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Organised data into train/val/test folders (80/10/10 split)</span><span class="badge b-green phase-tag">Dataset</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Dataset is balanced — equal real and fake samples</span><span class="badge b-green phase-tag">Dataset</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Frame extraction working (OpenCV + MTCNN face crop)</span><span class="badge b-blue phase-tag">Pipeline</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Frames resized to 224×224 and normalised</span><span class="badge b-blue phase-tag">Pipeline</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Model trains without errors on training split</span><span class="badge b-green phase-tag">Prototype</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Validation loss decreases over epochs (not overfitting)</span><span class="badge b-green phase-tag">Prototype</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">AUC-ROC computed and above 0.80 on test split</span><span class="badge b-green phase-tag">Metrics</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Accuracy, F1 score computed and recorded</span><span class="badge b-green phase-tag">Metrics</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Confusion matrix generated and saved as image for report</span><span class="badge b-green phase-tag">Metrics</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">ROC curve plotted and saved for report/slides</span><span class="badge b-green phase-tag">Metrics</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Cross-dataset test done (train FF++, test Celeb-DF)</span><span class="badge b-purple phase-tag">Advanced</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Web app tested end-to-end: upload real video → correct result</span><span class="badge b-amber phase-tag">App test</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Web app tested end-to-end: upload fake video → correct result</span><span class="badge b-amber phase-tag">App test</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Response time measured and under 5 seconds</span><span class="badge b-amber phase-tag">App test</span></li>
+    <li><div class="chk" onclick="tick(this)"><div class="chkmark"></div></div><span style="flex:1">Error handling tested: upload non-video file → graceful error message</span><span class="badge b-amber phase-tag">App test</span></li>
+  </ul>
+  <button style="margin-top:1rem;font-size:13px;padding:6px 14px;border-radius:var(--border-radius-md);border:0.5px solid #185FA5;background:transparent;color:#185FA5;cursor:pointer;" onclick="sendPrompt('Write me the Python code for the full testing pipeline: frame extraction with MTCNN, EfficientNet model evaluation, and computing AUC, F1, and accuracy metrics.')">Generate full testing code ↗</button>
+</div>
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('p-' + id).classList.add('on');
+  event.target.classList.add('on');
+}
+function tick(box) {
+  box.classList.toggle('done');
+  const total = document.querySelectorAll('.chk').length;
+  const done = document.querySelectorAll('.chk.done').length;
+  document.getElementById('ptxt').textContent = done + ' / ' + total + ' complete';
+  document.getElementById('pfill').style.width = Math.round(done/total*100) + '%';
+}
+</script>
