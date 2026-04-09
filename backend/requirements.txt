@@ -20,6 +20,7 @@ deepface==0.0.93
 # ── Free AI Text Analysis (HuggingFace, no API key) ─────
 transformers==4.40.0
 torch==2.3.0
+torchvision==0.18.0
  
 # ── HTTP & HTML (for URL/social media link analysis) ────
 requests==2.31.0
@@ -31,7 +32,13 @@ python-whois==0.9.4
 tldextract==5.1.2
  
 # ── Database (Supabase — stores analysis history) ───────
-supabase==2.4.2
+supabase==2.12.0
+
+# ── GenAI / LLM (Google Gemini — dynamic scenario analysis) ─────────────────
+google-genai==1.0.0
+
+# ── PDF Report Generator ─────────────────────────────────────────────────────
+fpdf2>=2.8
 
 # ── Utilities ───────────────────────────────────────────
 python-dotenv==1.0.1

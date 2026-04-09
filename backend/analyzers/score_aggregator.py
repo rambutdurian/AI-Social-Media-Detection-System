@@ -158,10 +158,12 @@ def aggregate_media_scores(media_type: str, content_type: str, media_result: dic
     """
     Builds the final response for VIDEO and IMAGE analysis.
     Called by the /analyze/video and /analyze/image endpoints.
+    After building the base result, calls Gemini for dynamic LLM analysis.
     """
     composite   = _safe_int(media_result.get('score', 0))
     trust_score = _safe_int(100 - composite)
     risk_level  = 'high' if composite >= 65 else 'medium' if composite >= 35 else 'low'
+    confidence  = _safe_int(media_result.get('confidence', min(95, 50 + composite // 2)))
 
     all_flags = media_result.get('flags', [])
 
@@ -180,11 +182,34 @@ def aggregate_media_scores(media_type: str, content_type: str, media_result: dic
         all_flags, {'deepfake_score': composite}
     )
     result['mediaType']         = media_type
-    result['confidence']        = _safe_int(media_result.get('confidence', min(95, 50 + composite // 2)))
+    result['confidence']        = confidence
     result['detectionTimeline'] = timeline
     result['framesAnalyzed']    = _safe_int(media_result.get('frames_analyzed', 1))
     result['facesDetected']     = _safe_int(media_result.get('faces_detected', 0))
     result['signalBreakdown']   = signals
+
+    # ── DYNAMIC LLM ENRICHMENT ────────────────────────────────────────────────
+    # Call Gemini to generate dynamic findings, verdict, and action guide.
+    # If Gemini fails, the result already has the hardcoded fallback from ACTIONS.
+    try:
+        from analyzers.genai_analyzer import generate_llm_analysis
+        llm = generate_llm_analysis(content_type, composite, confidence, all_flags, signals)
+        # Merge LLM fields into the result — LLM overrides the static defaults
+        result['scenario']             = llm.get('scenario', 'B')
+        result['verdict']              = llm.get('verdict', '')
+        result['riskSummary']          = llm.get('riskSummary', '')
+        result['explainableFindings']  = llm.get('explainableFindings', all_flags)
+        result['whatToDo']             = llm.get('whatToDo', result['whatToDo'])
+        # Scenario A: official sources
+        if llm.get('officialSources'):
+            result['officialSources']  = llm['officialSources']
+        # Scenario C: identity abuse fields
+        if llm.get('identityTrustScore') is not None:
+            result['identityTrustScore'] = llm['identityTrustScore']
+            result['identityEvidence']   = llm.get('identityEvidence', [])
+    except Exception as e:
+        print(f'[Aggregator] LLM enrichment failed (non-fatal): {e}')
+
     return result
 
 
@@ -224,4 +249,22 @@ def aggregate_url_scores(url: str, content_type: str, url_result: dict, content_
         {'signal': 'Content Analysis',    'score': content_s,  'flags': content_result.get('flags', [])},
         {'signal': 'Domain Intelligence', 'score': metadata_s, 'flags': metadata_result.get('flags', [])},
     ]
+
+    # ── DYNAMIC LLM ENRICHMENT ────────────────────────────────────────────────
+    try:
+        from analyzers.genai_analyzer import generate_llm_analysis
+        llm = generate_llm_analysis(content_type, composite, int(min(95, 50 + composite // 2)), all_flags, {})
+        result['scenario']            = llm.get('scenario', 'B')
+        result['verdict']             = llm.get('verdict', '')
+        result['riskSummary']         = llm.get('riskSummary', '')
+        result['explainableFindings'] = llm.get('explainableFindings', all_flags)
+        result['whatToDo']            = llm.get('whatToDo', result['whatToDo'])
+        if llm.get('officialSources'):
+            result['officialSources'] = llm['officialSources']
+        if llm.get('identityTrustScore') is not None:
+            result['identityTrustScore'] = llm['identityTrustScore']
+            result['identityEvidence']   = llm.get('identityEvidence', [])
+    except Exception as e:
+        print(f'[Aggregator] LLM enrichment failed (non-fatal): {e}')
+
     return result

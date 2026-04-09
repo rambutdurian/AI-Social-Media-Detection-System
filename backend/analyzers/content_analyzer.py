@@ -1,195 +1,235 @@
 # analyzers/content_analyzer.py
-# Fetches webpage text and analyzes it for scam patterns.
-# Optimized for speed: short timeouts, lightweight AI model usage.
+# Fetches and analyzes the text content of a webpage for scam indicators.
+# Used by the /analyze/url endpoint as the "Content Analysis" signal (50% weight).
 
-import requests
 import re
+import requests
 from bs4 import BeautifulSoup
 
-# ── AI model — loaded once and cached ────────────────────────────────────────
-_clf = None
+# ── Scam phrase lists ─────────────────────────────────────────────────────────
+
+# Phrases commonly found on investment scam pages
+INVESTMENT_SCAM_PHRASES = [
+    'guaranteed returns', 'risk-free investment', 'double your money',
+    'get rich', 'passive income', 'crypto trading bot', 'investment opportunity',
+    'exclusive investment', '100% profit', 'zero risk', 'no risk',
+    'whatsapp me', 'telegram group', 'dm for details', 'join now',
+    'limited slots', 'guaranteed profit',
+]
+
+# Phrases used in phishing pages to steal credentials or personal info
+PHISHING_PHRASES = [
+    'verify your account', 'confirm your identity', 'update payment',
+    'click here immediately', 'your account is suspended', 'urgent action required',
+    'otp required', 'login to confirm', 'verify now', 'account will be closed',
+    'unusual activity detected', 'reactivate your account',
+]
+
+# Urgency/pressure tactics used to rush victims into acting without thinking
+URGENCY_PHRASES = [
+    'act now', 'limited time', 'hurry', 'today only', 'last chance',
+    'expiring soon', 'immediate action', 'do not delay', 'offer ends',
+    'only a few spots left',
+]
+
+# ── HuggingFace model (optional, loaded once at startup) ─────────────────────
+
+_clf = None  # Module-level cache — only loaded once
+
 
 def get_clf():
-    """Load the HuggingFace model once. Returns None if unavailable."""
+    """
+    Loads and caches a lightweight HuggingFace zero-shot text classifier.
+
+    'Zero-shot' means the model can classify text into any labels you give it
+    without needing to be trained on those specific labels first.
+
+    This is called once at startup by preload_models() in app.py.
+    If the model can't be downloaded (no internet, not enough RAM), it
+    gracefully returns None and the rest of analyze_content() still works
+    using only the rule-based checks.
+    """
     global _clf
     if _clf is None:
         try:
             from transformers import pipeline
-            print('[AI] Loading text classification model...')
+            # device=-1 means run on CPU (no GPU required)
+            # This model is ~260MB and needs to be downloaded once
             _clf = pipeline(
-                'text-classification',
-                model='martin-ha/toxic-comment-model',
-                device=-1,          # CPU — no GPU needed
-                truncation=True,
-                max_length=512
+                'zero-shot-classification',
+                model='typeform/distilbert-base-uncased-mnli',
+                device=-1,
             )
-            print('[AI] Text model loaded!')
         except Exception as e:
-            print(f'[AI] Model load failed (will use phrase-only detection): {e}')
+            # Not a fatal error — rule-based checks still run without this
+            print(f'[ContentAnalyzer] HuggingFace model unavailable (non-fatal): {e}')
             _clf = None
     return _clf
 
 
-# ── Scenario-aware scam phrases ───────────────────────────────────────────────
-SCENARIO_PHRASES = {
-    'investment': [
-        'guaranteed returns', 'risk-free investment', '100% profit',
-        'double your money', 'passive income guaranteed', 'secret strategy',
-        'financial freedom', 'crypto millionaire', 'insider tip',
-        'limited spots', 'act before midnight', 'exclusive members only',
-    ],
-    'job': [
-        'work from home earn', 'no experience needed', 'unlimited earning',
-        'make money fast', 'training fee required', 'pay upfront',
-        'starter kit', 'immediate start', 'send your details',
-    ],
-    'health': [
-        'doctors hate this', 'miracle cure', 'instant results',
-        'banned supplement', 'ancient secret', 'reverses aging',
-        'fda doesnt want', 'one weird trick', 'cures all',
-    ],
-    'news': [
-        'they dont want you to know', 'mainstream media hiding',
-        'cover-up exposed', 'wake up sheeple', 'plandemic', 'deep state',
-        'shocking truth revealed', 'banned news',
-    ],
-    'general': [
-        'click here now', 'you have been selected', 'congratulations you won',
-        'verify your account', 'urgent action required',
-        'gift card payment', 'wire transfer', 'send me your',
-        'prince needs help', 'inheritance transfer',
-    ],
-}
+# ── Private helper ────────────────────────────────────────────────────────────
 
-URGENCY_WORDS = [
-    'urgent', 'immediately', 'act now', 'expires today', 'last chance',
-    'hurry', 'final notice', 'respond within 24', 'your account will be',
-    'limited time', 'deadline',
-]
-
-
-def fetch_page(url: str) -> tuple:
+def _fetch_text(url: str, timeout: int = 8) -> str:
     """
-    Fetches a webpage and returns (clean_text, metadata_dict).
-    Uses a short 7-second timeout so slow sites don't block the server.
+    Fetches a webpage and returns its visible text content.
+
+    Steps:
+    1. Send an HTTP GET request pretending to be a normal browser
+       (some sites block requests without a User-Agent header).
+    2. Parse the raw HTML with BeautifulSoup.
+    3. Remove non-visible tags: <script>, <style>, <noscript>, <meta>.
+    4. Extract all remaining text, collapse whitespace.
+    5. Truncate to 5000 characters so analysis stays fast.
     """
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept': 'text/html,application/xhtml+xml',
+        'User-Agent': (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/124.0 Safari/537.36'
+        )
     }
-    try:
-        resp = requests.get(url, headers=headers, timeout=7)
-        resp.raise_for_status()
+    resp = requests.get(url, headers=headers, timeout=timeout)
+    resp.raise_for_status()  # Raises an exception for 4xx/5xx HTTP errors
 
-        soup  = BeautifulSoup(resp.text, 'lxml')
-        title = soup.find('title')
-        meta  = soup.find('meta', attrs={'name': 'description'})
+    soup = BeautifulSoup(resp.text, 'lxml')
 
-        # Remove noise elements
-        for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
-            tag.decompose()
+    # Remove tags whose content is never visible to real users
+    for tag in soup(['script', 'style', 'meta', 'noscript']):
+        tag.decompose()
 
-        text = re.sub(r'\s+', ' ', soup.get_text(' ', strip=True)).strip()
+    text = soup.get_text(separator=' ', strip=True)
 
-        # Limit to 1500 chars — enough for analysis, reduces AI processing time
-        text = text[:1500]
+    # Collapse multiple spaces/newlines into a single space
+    text = re.sub(r'\s+', ' ', text)
 
-        return text, {
-            'title':       title.get_text(strip=True) if title else '',
-            'description': meta.get('content', '') if meta else '',
-            'status':      resp.status_code,
-        }
-
-    except requests.Timeout:
-        return '', {'error': 'Page took too long to load (>7s)'}
-    except requests.ConnectionError:
-        return '', {'error': 'Could not connect to URL'}
-    except Exception as e:
-        return '', {'error': str(e)}
+    return text[:5000]  # Cap at 5000 chars — enough to catch scam language
 
 
-def analyze_content(url: str, content_type: str) -> dict:
+# ── Main public function ──────────────────────────────────────────────────────
+
+def analyze_content(url: str, content_type: str = 'general') -> dict:
     """
-    Analyzes webpage content for scam patterns.
-    Runs phrase detection (fast) + AI model (moderate).
+    Fetches the webpage at `url` and scans its text for scam indicators.
+
+    Called by the /analyze/url endpoint with a 20-second thread timeout.
+    Weights 50% of the final URL composite risk score.
+
+    Args:
+        url:          The full URL to analyze (e.g. 'https://example.com').
+        content_type: Category hint from the user ('investment', 'job',
+                      'health', 'news', 'general'). Used for context-specific checks.
+
+    Returns:
+        {
+            'score':   int   — risk score 0–100 (higher = more suspicious),
+            'flags':   list  — human-readable explanations of what was found,
+            'details': dict  — extra metadata (char count, classifier result, etc.)
+        }
     """
     risk_score = 0
     flags      = []
     details    = {}
 
-    # Step 1: Fetch the page
-    text, meta = fetch_page(url)
-    details['meta'] = meta
+    try:
+        # ── Fetch page text ───────────────────────────────────────────────────
+        text       = _fetch_text(url)
+        text_lower = text.lower()
+        details['char_count'] = len(text)
 
-    if not text or 'error' in meta:
-        return {
-            'score':   20,
-            'flags':   [f'Could not load page: {meta.get("error", "unknown error")}'],
-            'details': details
-        }
+        # ── CHECK 1: Investment / financial scam language ─────────────────────
+        # Scammers use specific phrases to lure victims into fake investments.
+        # We check how many of these phrases appear and score proportionally.
+        matched_inv = [p for p in INVESTMENT_SCAM_PHRASES if p in text_lower]
+        if matched_inv:
+            # Each phrase adds 10 points, capped at 40 total for this check
+            risk_score += min(40, len(matched_inv) * 10)
+            # Show the first 3 matched phrases in the flag message
+            flags.append(
+                f'Investment scam language detected: "{", ".join(matched_inv[:3])}"'
+            )
 
-    text_lower = text.lower()
-    details['preview'] = text[:150] + '...'
+        # ── CHECK 2: Phishing / credential theft language ─────────────────────
+        # Phishing pages try to trick users into entering passwords or OTPs.
+        matched_phish = [p for p in PHISHING_PHRASES if p in text_lower]
+        if matched_phish:
+            risk_score += min(35, len(matched_phish) * 12)
+            flags.append(
+                f'Phishing language detected: "{", ".join(matched_phish[:3])}"'
+            )
 
-    # Step 2: Scenario-aware phrase detection (very fast — just string matching)
-    phrases    = SCENARIO_PHRASES.get(content_type, []) + SCENARIO_PHRASES['general']
-    hits       = [p for p in phrases if p in text_lower]
-    if hits:
-        risk_score += min(len(hits) * 12, 40)
-        flags.append(f'Found {len(hits)} scam-associated phrases for "{content_type}": {hits[:3]}')
-    details['phrase_hits'] = hits[:5]
+        # ── CHECK 3: Urgency / pressure tactics ───────────────────────────────
+        # Scammers create artificial urgency so victims act without thinking.
+        matched_urgency = [p for p in URGENCY_PHRASES if p in text_lower]
+        if matched_urgency:
+            risk_score += min(15, len(matched_urgency) * 5)
+            flags.append(
+                f'Urgency/pressure tactics found: "{", ".join(matched_urgency[:2])}"'
+            )
 
-    # Step 3: AI model — manipulative language detection
-    # Only run if model is loaded and text is long enough to be meaningful
-    clf = get_clf()
-    if clf and len(text.strip()) > 50:
+        # ── CHECK 4: Investment content-type bonus ────────────────────────────
+        # Only applies when the user selected "Investment" as the content type.
+        # Looks for the combination of financial transaction words AND
+        # investment promises — a strong pattern for Malaysian investment scams.
+        if content_type == 'investment':
+            has_financial_words = any(
+                kw in text_lower for kw in ['ringgit', ' rm ', 'myr', 'transfer', 'bank account']
+            )
+            has_promise_words = any(
+                kw in text_lower for kw in ['profit', 'earn', 'returns', 'investment', 'dividends']
+            )
+            if has_financial_words and has_promise_words:
+                risk_score += 20
+                flags.append(
+                    'Financial transaction language combined with investment promises — '
+                    'consistent with Malaysian investment scam pattern'
+                )
+
+        # ── CHECK 5: HuggingFace zero-shot classification (optional) ──────────
+        # If the model loaded successfully, ask it to classify the page text.
+        # We use only the first 512 characters (the model's input limit).
+        # This is optional: if the model is unavailable, this block is skipped.
         try:
-            # Use only first 512 chars — faster and within model limit
-            chunk  = text[:512]
-            result = clf(chunk, truncation=True, max_length=512)[0]
+            clf = get_clf()
+            if clf and len(text) > 50:
+                snippet    = text[:512]
+                labels     = ['investment scam', 'phishing', 'legitimate content']
+                clf_result = clf(snippet, candidate_labels=labels)
 
-            label = result['label'].lower()
-            score = float(result['score'])
+                top_label = clf_result['labels'][0]   # Most likely category
+                top_score = clf_result['scores'][0]   # Confidence 0.0–1.0
 
-            # Model labels vary by version — handle all common ones
-            is_toxic = label in ('toxic', 'label_1', '1', 'spam', 'hate')
+                details['clf_label']      = top_label
+                details['clf_confidence'] = round(top_score, 3)
 
-            if is_toxic and score > 0.5:
-                ai_points = int(score * 40)
-                risk_score += ai_points
-                flags.append(f'AI model: manipulative/harmful language detected ({score:.0%} confidence)')
-            elif is_toxic and score > 0.3:
-                risk_score += 10
-                flags.append(f'AI model: some suspicious language patterns ({score:.0%} confidence)')
+                # Only add points if the model is confident it's a scam
+                if top_label in ('investment scam', 'phishing') and top_score > 0.6:
+                    # Add up to 20 bonus points based on model confidence
+                    bonus = int(top_score * 20)
+                    risk_score += bonus
+                    flags.append(
+                        f'AI text classifier: page content resembles "{top_label}" '
+                        f'({top_score:.0%} confidence)'
+                    )
+        except Exception:
+            # HuggingFace classifier is entirely optional — never let it crash the app
+            pass
 
-            details['ai_score'] = round(score, 3)
+    # ── Error handling ────────────────────────────────────────────────────────
+    # These exceptions mean we couldn't fetch or parse the page.
+    # We still return a valid dict (score=0) so the URL pipeline doesn't crash.
+    except requests.Timeout:
+        flags.append('Page took too long to load — content could not be verified')
+        details['fetch_error'] = 'timeout'
 
-        except Exception as e:
-            details['ai_error'] = str(e)
+    except requests.RequestException as e:
+        flags.append(f'Could not fetch page content: {str(e)[:80]}')
+        details['fetch_error'] = str(e)[:80]
 
-    # Step 4: Urgency tactic detection
-    urgency_hits = [w for w in URGENCY_WORDS if w in text_lower]
-    if len(urgency_hits) >= 2:
-        risk_score += 15
-        flags.append(f'Multiple urgency tactics detected: {urgency_hits[:3]}')
-
-    # Step 5: Excessive ALL CAPS (common in scam content)
-    words = text.split()
-    if len(words) > 15:
-        caps_ratio = sum(1 for w in words if w.isupper() and len(w) > 2) / len(words)
-        if caps_ratio > 0.12:
-            risk_score += 10
-            flags.append(f'Excessive capitalisation ({caps_ratio:.0%} of words in ALL CAPS)')
-
-    # Step 6: No trust signals (legitimate sites always have these)
-    trust_signals = ['privacy policy', 'terms of service', 'contact us', 'about us', 'registered']
-    if not any(ts in text_lower for ts in trust_signals):
-        risk_score += 10
-        flags.append('No privacy policy, terms, or contact information found — untransparent site')
+    except Exception as e:
+        flags.append(f'Content analysis error: {str(e)[:80]}')
 
     return {
-        'score':   int(min(risk_score, 100)),
+        'score':   int(min(risk_score, 100)),  # Always a plain Python int, max 100
         'flags':   flags,
-        'details': details
+        'details': details,
     }

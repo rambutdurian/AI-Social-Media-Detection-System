@@ -34,6 +34,7 @@ def extract_frames(video_path: str, max_frames: int = 15):
         ret, frame = cap.read()
         if not ret:
             break
+        frame = cv2.resize(frame, (224, 224))   # normalize to 224x224 for consistent scoring across resolutions
         frames.append(frame)
         frame_idx += interval
 
@@ -83,18 +84,41 @@ def signal_temporal(frames: list) -> dict:
 
 
 def signal_blur(frames: list) -> dict:
-    """SIGNAL 3: Unnaturally smooth faces = deepfake indicator (Laplacian method)."""
-    scores    = [float(cv2.Laplacian(cv2.cvtColor(f, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var()) for f in frames]
-    avg_var   = float(np.mean(scores))
+    """SIGNAL 3: Unnaturally smooth faces = deepfake indicator (face-crop Laplacian).
+
+    Crops to the largest detected face region before computing Laplacian variance.
+    AI deepfakes apply smoothing specifically to faces, so analyzing the face ROI
+    is far more discriminative than running it on the full frame (which includes background).
+    Falls back to full-frame analysis if no face is detected.
+    """
+    cascade = cv2.CascadeClassifier(CASCADE_PATH)
+    scores  = []
+
+    for frame in frames:
+        gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4)
+
+        if len(faces) > 0:
+            # Use the largest face by area for the most reliable signal
+            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+            roi     = gray[y:y+h, x:x+w]
+            lap_var = float(cv2.Laplacian(roi, cv2.CV_64F).var())
+        else:
+            # No face detected — fall back to full frame
+            lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+        scores.append(lap_var)
+
+    avg_var   = float(np.mean(scores)) if scores else 0.0
     triggered = bool(avg_var < 100)
     return {
         'triggered':    triggered,
         'score':        25 if triggered else 0,
         'avg_variance': round(avg_var, 2),
         'explanation':  (
-            f'Unnatural smoothing (variance={avg_var:.0f}) — AI faces lack natural skin texture.'
+            f'Unnatural smoothing on face region (variance={avg_var:.0f}) - AI faces lack natural skin texture.'
             if triggered else
-            f'Image sharpness appears natural (variance={avg_var:.0f}).'
+            f'Face texture appears natural (variance={avg_var:.0f}).'
         )
     }
 
