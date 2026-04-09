@@ -7,7 +7,6 @@ import {
   Link as LinkIcon,
   Sparkles,
   Users,
-  Briefcase,
   DollarSign,
   Video,
   TrendingUp,
@@ -24,10 +23,13 @@ import {
   Ban,
   FileText,
   MessageSquare,
-  Upload
+  Upload,
+  Clock
 } from 'lucide-react';
 import { FileUploader } from './components/FileUploader';
 import { ReportModal } from './components/ReportModal';
+import HistoryView from './components/HistoryView';
+import { DynamicActionPanel } from './components/DynamicActionPanel';
 
 type ContentType = 'investment' | 'job' | 'health' | 'news' | 'general';
 
@@ -63,6 +65,12 @@ interface AnalysisResult {
     shouldDo: string[];
     verifyThrough: string[];
   };
+  verdict?: string;
+  riskSummary?: string;
+  scenario?: 'A' | 'B' | 'C';
+  officialSources?: Array<{ name: string; url: string }>;
+  identityTrustScore?: number;
+  identityEvidence?: string[];
   uploadedFiles?: Array<{ file: File; type: 'image' | 'video' }>;
 }
 
@@ -76,6 +84,7 @@ export default function App() {
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ file: File; type: 'image' | 'video' }>>([]);
   const [showUploader, setShowUploader] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'analyze' | 'history'>('analyze');
 
   const contentTypes = [
     { value: 'investment', label: 'Financial/Investment', icon: <DollarSign className="w-5 h-5" /> },
@@ -93,198 +102,87 @@ export default function App() {
     setLink(url);
   };
 
-  const handleAnalyze = () => {
-    if (!link.trim()) return;
+  const METRIC_MAP: Array<{ key: keyof AnalysisResult['detectionMetrics']; label: string; icon: string }> = [
+    { key: 'aiGenerated',    label: 'AI-Generated Content',   icon: 'sparkles' },
+    { key: 'deepfake',       label: 'Deepfake Detected',      icon: 'video'    },
+    { key: 'impersonation',  label: 'Identity Impersonation', icon: 'users'    },
+    { key: 'cryptoScam',     label: 'Crypto/Investment Scam', icon: 'dollar'   },
+    { key: 'phishing',       label: 'Phishing Attempt',       icon: 'mail'     },
+    { key: 'identityTheft',  label: 'Identity Theft Risk',    icon: 'lock'     },
+    { key: 'misinformation', label: 'Misinformation Content', icon: 'zap'      },
+  ];
+
+  const mapToResult = (
+    data: any,
+    url: string,
+    ct: ContentType,
+    files: Array<{ file: File; type: 'image' | 'video' }>
+  ): AnalysisResult => ({
+    id: Date.now().toString(),
+    url,
+    contentType: ct,
+    trustScore: data.trustScore ?? (100 - (data.riskScore ?? 50)),
+    riskLevel: data.riskLevel,
+    riskImpact: data.riskImpact,
+    detectionMetrics: data.detectionMetrics,
+    explainableFindings: data.explainableFindings ?? [],
+    whatToDo: data.whatToDo,
+    verdict:            data.verdict,
+    riskSummary:        data.riskSummary,
+    scenario:           data.scenario,
+    officialSources:    data.officialSources ?? [],
+    identityTrustScore: data.identityTrustScore,
+    identityEvidence:   data.identityEvidence ?? [],
+    uploadedFiles: files.length > 0 ? [...files] : undefined,
+    detectedThreats: METRIC_MAP
+      .filter(m => (data.detectionMetrics?.[m.key] ?? 0) > 50)
+      .map(m => ({ type: m.label, confidence: data.detectionMetrics[m.key], icon: m.icon })),
+  });
+
+  const handleAnalyze = async () => {
+    const videoFile = uploadedFiles.find(f => f.type === 'video');
+    if (!link.trim() && !videoFile) return;
 
     setIsAnalyzing(true);
 
-    // Simulate AI analysis with context-aware mock data
-    // In production, this would send to backend API with uploaded files
-    setTimeout(() => {
-      const score = Math.floor(Math.random() * 100);
-      const trustScore = 100 - score; // Invert for trust score
+    try {
+      let data: any;
 
-      const mockResult: AnalysisResult = {
-        id: Date.now().toString(),
-        url: link,
-        contentType,
-        trustScore,
-        riskLevel: score > 70 ? 'high' : score > 40 ? 'medium' : 'low',
-        uploadedFiles: uploadedFiles.length > 0 ? [...uploadedFiles] : undefined,
-        riskImpact: {
-          financial: contentType === 'investment' || contentType === 'job' ? (score > 70 ? 'high' : score > 40 ? 'medium' : 'low') : 'low',
-          reputation: score > 60 ? 'high' : score > 35 ? 'medium' : 'low',
-          misinformation: contentType === 'news' || contentType === 'health' ? (score > 70 ? 'high' : score > 40 ? 'medium' : 'low') : 'medium',
-        },
-        detectionMetrics: {
-          aiGenerated: Math.floor(Math.random() * 100),
-          deepfake: Math.floor(Math.random() * 100),
-          impersonation: Math.floor(Math.random() * 100),
-          misinformation: Math.floor(Math.random() * 100),
-          cryptoScam: contentType === 'investment' ? Math.floor(Math.random() * 100) : 0,
-          romanceScam: 0,
-          phishing: Math.floor(Math.random() * 100),
-          identityTheft: Math.floor(Math.random() * 100),
-        },
-        detectedThreats: [
-          { type: 'Fake Celebrity Endorsement', confidence: 87, icon: 'users' },
-          { type: 'AI-Generated Voice Pattern', confidence: 92, icon: 'sparkles' },
-          { type: 'Suspicious Financial Claims', confidence: 76, icon: 'dollar' },
-        ],
-        explainableFindings: getContextualFindings(contentType, score),
-        whatToDo: getContextualActions(contentType, score),
-      };
-
-      if (comparisonMode) {
-        setResults(prev => [...prev, mockResult]);
-        setSelectedResult(mockResult.id);
+      if (videoFile) {
+        const formData = new FormData();
+        formData.append('file', videoFile.file);
+        formData.append('contentType', contentType);
+        const res          = await fetch('/analyze/video', { method: 'POST', body: formData });
+        const responseJson = await res.json();
+        if (!res.ok) { alert(responseJson.message || responseJson.error || 'Video analysis failed.'); return; }
+        if (responseJson.noFaceDetected) { alert(responseJson.message); return; }
+        data = responseJson.status === 'success' ? responseJson.data : responseJson;
       } else {
-        setResults([mockResult]);
-        setSelectedResult(mockResult.id);
+        const res = await fetch('/analyze/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: link, contentType }),
+        });
+        data = await res.json();
+        if (!res.ok) { alert(data.error || 'URL analysis failed.'); return; }
       }
 
-      setIsAnalyzing(false);
+      const result = mapToResult(data, link || videoFile!.file.name, contentType, uploadedFiles);
+
+      if (comparisonMode) {
+        setResults(prev => [...prev, result]);
+      } else {
+        setResults([result]);
+      }
+      setSelectedResult(result.id);
       setLink('');
       setUploadedFiles([]);
       setShowUploader(false);
-    }, 2000);
-  };
-
-  const getContextualFindings = (type: ContentType, score: number): string[] => {
-    const findings: { [key in ContentType]: string[] } = {
-      investment: [
-        'Unnatural facial movements detected at 0:12 and 0:34 seconds',
-        'Voice pattern analysis shows AI-generated speech inconsistencies',
-        'Background lighting does not match face lighting (deepfake indicator)',
-        'Promises unrealistic returns of 500% within 30 days',
-        'Celebrity likeness used without verified endorsement from official sources',
-      ],
-      job: [
-        'Face morphing detected - likely AI-generated celebrity impersonation',
-        'Voice does not match verified recordings of this public figure',
-        'Video metadata shows signs of recent AI synthesis',
-        'Content appears on unverified social media accounts only',
-        'Claims contradict official statements from the actual person',
-      ],
-      health: [
-        'Facial recognition mismatch with verified images of political figure',
-        'Speech patterns inconsistent with known public addresses',
-        'Video background contains digital artifacts from AI generation',
-        'Content promotes agenda contrary to official policy positions',
-        'Posted by newly created account with fake verification badges',
-      ],
-      news: [
-        'Source not found in verified news organization databases',
-        'Image manipulation detected in 3 out of 5 photos analyzed',
-        'Claims directly contradict multiple credible news sources',
-        'Website domain mimics legitimate news outlet with slight variations',
-        'No verifiable author credentials or editorial board information',
-      ],
-      general: [
-        'AI-generated content patterns detected across multiple indicators',
-        'Facial analysis reveals manipulation and synthesis indicators',
-        'Account created recently with suspicious engagement patterns',
-        'Content shows characteristics of coordinated inauthentic behavior',
-        'Multiple red flags identified in comprehensive credibility assessment',
-      ],
-    };
-    return findings[type];
-  };
-
-  const getContextualActions = (type: ContentType, score: number): AnalysisResult['whatToDo'] => {
-    const actions: { [key in ContentType]: AnalysisResult['whatToDo'] } = {
-      investment: {
-        dontDo: [
-          'Do NOT transfer any money or provide banking/credit card details',
-          'Do NOT share personal identification documents or passwords',
-          'Do NOT click on investment links or download any files from this source',
-        ],
-        shouldDo: [
-          'Verify the celebrity endorsement through their official verified accounts',
-          'Check if the investment firm is registered with SEC or financial authorities',
-          'Report to your local financial fraud department immediately',
-          'Consult with a licensed, independent financial advisor before investing',
-        ],
-        verifyThrough: [
-          'SEC.gov (U.S. Securities and Exchange Commission)',
-          'Celebrity\'s official verified social media accounts',
-          'Better Business Bureau (BBB) or equivalent in your country',
-        ],
-      },
-      job: {
-        dontDo: [
-          'Do NOT assume this is the real celebrity/CEO speaking',
-          'Do NOT share or forward the video without warning others it may be fake',
-          'Do NOT make decisions based solely on this video content',
-        ],
-        shouldDo: [
-          'Check the person\'s official verified social media accounts for the same message',
-          'Look for official press releases on company/celebrity websites',
-          'Report the fake video to the platform and relevant authorities',
-          'Alert friends/family who may have seen and believed the video',
-        ],
-        verifyThrough: [
-          'Official company website press releases',
-          'Celebrity\'s verified Twitter/Instagram/Facebook accounts',
-          'Reputable news organizations reporting the same story',
-        ],
-      },
-      health: {
-        dontDo: [
-          'Do NOT assume this represents the political figure\'s actual position',
-          'Do NOT share the video as if it were authentic',
-          'Do NOT let this video influence voting or political decisions',
-        ],
-        shouldDo: [
-          'Check official government websites for authentic statements',
-          'Look for fact-checking from reputable news organizations',
-          'Report the deepfake to electoral authorities if during an election period',
-          'Compare with verified videos from official government channels',
-        ],
-        verifyThrough: [
-          'Official government websites and press offices',
-          'Verified political party social media accounts',
-          'FactCheck.org, PolitiFact, or equivalent fact-checkers',
-        ],
-      },
-      news: {
-        dontDo: [
-          'Do NOT share the content without fact-checking multiple sources',
-          'Do NOT make important decisions based solely on this source',
-          'Do NOT engage with or amplify suspicious or unverified content',
-        ],
-        shouldDo: [
-          'Cross-reference the story with established, trusted news outlets',
-          'Check major fact-checking websites for debunking information',
-          'Look for the story on AP News, Reuters, BBC, or similar sources',
-          'Report misinformation to the social media platform hosting it',
-        ],
-        verifyThrough: [
-          'AP News, Reuters, BBC News, or other wire services',
-          'FactCheck.org, Snopes.com, or regional fact-checkers',
-          'Original source documents if the article cites any',
-        ],
-      },
-      general: {
-        dontDo: [
-          'Do NOT share personal, financial, or sensitive information',
-          'Do NOT click on suspicious links or download unknown files',
-          'Do NOT forward or share the content without proper verification',
-        ],
-        shouldDo: [
-          'Verify information through official channels and trusted sources',
-          'Check multiple established sources for similar information',
-          'Report clearly fraudulent content to the platform administrators',
-          'Use reverse image/video search tools to check authenticity',
-        ],
-        verifyThrough: [
-          'Official websites and verified social media accounts',
-          'Established, reputable news sources',
-          'Recognized fact-checking websites and organizations',
-        ],
-      },
-    };
-    return actions[type];
+    } catch {
+      alert('Network error: Could not reach the backend. Make sure the server is running on port 5000.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const removeResult = (id: string) => {
@@ -377,6 +275,36 @@ export default function App() {
           </p>
         </div>
 
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab('analyze')}
+            className={`px-5 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 ${
+              activeTab === 'analyze'
+                ? 'bg-blue-500 text-white shadow-lg'
+                : 'bg-white/10 text-gray-300 hover:bg-white/20'
+            }`}
+          >
+            <Shield className="w-4 h-4" />
+            Analyze
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`px-5 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 ${
+              activeTab === 'history'
+                ? 'bg-blue-500 text-white shadow-lg'
+                : 'bg-white/10 text-gray-300 hover:bg-white/20'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            History
+          </button>
+        </div>
+
+        {activeTab === 'history' && <HistoryView />}
+
+        {activeTab === 'analyze' && (<>
+
         {/* Input Section with Content Type Selector */}
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8 border border-white/20 animate-in fade-in slide-in-from-bottom duration-700 delay-150">
           <div className="flex items-center justify-between mb-6">
@@ -459,7 +387,7 @@ export default function App() {
             </div>
             <button
               onClick={handleAnalyze}
-              disabled={!link.trim() || isAnalyzing}
+              disabled={(!link.trim() && !uploadedFiles.some(f => f.type === 'video')) || isAnalyzing}
               className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 duration-200"
             >
               {isAnalyzing ? (
@@ -628,86 +556,17 @@ export default function App() {
               </div>
             </div>
 
-            {/* What Should I Do? - DECISION ENGINE */}
-            <div className="bg-gradient-to-r from-red-600 via-orange-600 to-red-600 rounded-2xl shadow-2xl p-8 text-white animate-in fade-in zoom-in duration-500">
-              <h2 className="mb-6 flex items-center gap-3 text-2xl">
-                <Shield className="w-8 h-8" />
-                What Should I Do?
-              </h2>
-
-              <div className="grid md:grid-cols-3 gap-6">
-                {/* DON'T DO */}
-                <div className="bg-white/10 backdrop-blur rounded-xl p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <XCircle className="w-6 h-6" />
-                    <h3 className="text-lg font-semibold">DON'T</h3>
-                  </div>
-                  <ul className="space-y-2">
-                    {currentResult.whatToDo.dontDo.map((item, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm">
-                        <Ban className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* SHOULD DO */}
-                <div className="bg-white/10 backdrop-blur rounded-xl p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <CheckCircle className="w-6 h-6" />
-                    <h3 className="text-lg font-semibold">DO</h3>
-                  </div>
-                  <ul className="space-y-2">
-                    {currentResult.whatToDo.shouldDo.map((item, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm">
-                        <ArrowRight className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* VERIFY THROUGH */}
-                <div className="bg-white/10 backdrop-blur rounded-xl p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <BadgeCheck className="w-6 h-6" />
-                    <h3 className="text-lg font-semibold">Verify Through</h3>
-                  </div>
-                  <ul className="space-y-2">
-                    {currentResult.whatToDo.verifyThrough.map((item, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm">
-                        <Shield className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* Explainable Findings - Human Language */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20 animate-in fade-in slide-in-from-bottom duration-500">
-              <h2 className="mb-6 flex items-center gap-2 text-white text-2xl">
-                <Eye className="w-7 h-7 text-blue-400" />
-                Why This Looks Suspicious
-              </h2>
-              <p className="text-gray-300 mb-4">Here's what our AI detected in plain language:</p>
-              <ul className="space-y-3">
-                {currentResult.explainableFindings.map((item, index) => (
-                  <li
-                    key={index}
-                    className="flex items-start gap-3 p-4 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 hover:border-blue-400/30 hover:translate-x-2 transition-all duration-300 animate-in fade-in slide-in-from-left"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <span className="w-7 h-7 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-sm font-semibold hover:scale-110 transition-transform">
-                      {index + 1}
-                    </span>
-                    <span className="text-gray-200">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {/* Dynamic LLM Action Panel — scenario A/B/C with official sources & identity trust */}
+            <DynamicActionPanel
+              scenario={currentResult.scenario}
+              verdict={currentResult.verdict}
+              riskSummary={currentResult.riskSummary}
+              whatToDo={currentResult.whatToDo}
+              officialSources={currentResult.officialSources}
+              identityTrustScore={currentResult.identityTrustScore}
+              identityEvidence={currentResult.identityEvidence}
+              explainableFindings={currentResult.explainableFindings}
+            />
 
             {/* Detection Metrics - Technical Layer */}
             <details className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:bg-white/10 transition-all cursor-pointer">
@@ -770,7 +629,25 @@ export default function App() {
                 Analyze Another Link
               </button>
               <button
-                onClick={() => alert('Downloading detailed intelligence report...')}
+                onClick={async () => {
+                  if (!currentResult) return;
+                  try {
+                    const res = await fetch('/generate-report', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(currentResult),
+                    });
+                    if (!res.ok) { alert('Failed to generate report.'); return; }
+                    const blob = await res.blob();
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'frauda-report.pdf';
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  } catch {
+                    alert('Could not generate report. Make sure the server is running.');
+                  }
+                }}
                 className="px-6 py-3 bg-white text-gray-900 rounded-xl hover:bg-gray-100 hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg"
               >
                 Download Full Report
@@ -830,6 +707,7 @@ export default function App() {
             </p>
           </div>
         )}
+        </>)}
       </div>
     </div>
   );

@@ -1,0 +1,46 @@
+# ── Web server ─────────────────────────────────────────
+flask==3.0.3
+flask-cors==4.0.1
+ 
+# ── Video & Image Processing ────────────────────────────
+# OpenCV: reads video files, extracts frames, detects faces
+# This is the CORE library for all video/image analysis
+opencv-python==4.9.0.80
+ 
+# NumPy: fast math on image pixel arrays
+numpy==1.26.4
+ 
+# Pillow: reads image files (JPEG, PNG, WEBP, GIF)
+Pillow==10.3.0
+ 
+# DeepFace: deep learning face analysis (optional but powerful)
+# Detects: facial landmarks, emotion, age, gender inconsistencies
+deepface==0.0.93
+ 
+# ── Free AI Text Analysis (HuggingFace, no API key) ─────
+transformers==4.40.0
+torch==2.3.0
+torchvision==0.18.0
+ 
+# ── HTTP & HTML (for URL/social media link analysis) ────
+requests==2.31.0
+beautifulsoup4==4.12.3
+lxml==5.2.1
+ 
+# ── Domain intelligence ──────────────────────────────────
+python-whois==0.9.4
+tldextract==5.1.2
+ 
+# ── Database (Supabase — stores analysis history) ───────
+supabase==2.12.0
+
+# ── GenAI / LLM (Google Gemini — dynamic scenario analysis) ─────────────────
+google-genai==1.0.0
+
+# ── PDF Report Generator ─────────────────────────────────────────────────────
+fpdf2>=2.8
+
+# ── Utilities ───────────────────────────────────────────
+python-dotenv==1.0.1
+werkzeug==3.0.3
+
