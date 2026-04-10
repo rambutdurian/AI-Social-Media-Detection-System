@@ -1,0 +1,79 @@
+# ===========================
+# FRAUDA — .gitignore
+# ===========================
+
+# --- SECRET FILES (NEVER PUSH) ---
+.env
+.env.local
+.env.production
+.env.staging
+
+# --- CLAUDE AI FILES (NEVER PUSH) ---
+.claude/
+CLAUDE.md
+
+# --- PYTHON ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# --- ML MODELS & DATASETS (TOO LARGE FOR GITHUB) ---
+backend/ml/models/*
+!backend/ml/models/.gitkeep
+backend/ml/results/
+backend/ml/test_videos/
+backend/ml/zf_dataset_deepfake.txt
+backend/ml/zf_dataset_non_deepfake.txt
+backend/ml/download_zf_dataset.py
+
+# --- TEMP VIDEO UPLOADS ---
+backend/tmp_videos/*
+!backend/tmp_videos/.gitkeep
+
+# --- MODEL FILE TYPES ---
+*.pth
+*.pt
+*.h5
+*.pkl
+*.onnx
+*.pb
+*.weights
+
+# --- VIDEO FILES (keep sample video folder) ---
+*.mp4
+*.avi
+*.mov
+*.mkv
+!sample video/
+
+# --- NODE / FRONTEND ---
+node_modules/
+frontend/dist/
+frontend/build/
+.npm/
+
+# --- OS FILES ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- IDE ---
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# --- LOGS ---
+*.log
+logs/
