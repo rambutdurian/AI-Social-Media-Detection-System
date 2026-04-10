@@ -125,7 +125,7 @@ backend/ml/models/
 └── FF++_c40.pth
 ```
 
-Download link: [add your Google Drive link here]
+Download link: [https://drive.google.com/drive/folders/1GNtk3hLq6sUGZCGx8fFttvyNYH8nrQS8]
 
 ### 5. Run Locally
 
