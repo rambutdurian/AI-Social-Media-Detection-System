@@ -49,31 +49,31 @@ Frauda AI Trust Intelligence provides:
 - pip (Python package manager)
 
 **Front-end Setup**
-cd frontend
-npm install
-npm run build
-npm start
+- cd frontend
+- npm install
+- npm run build
+- npm start
 
 **Back-end Setup**
-cd backend
-pip install -r requirements.txt
-python app.py
+- cd backend
+- pip install -r requirements.txt
+- python app.py
 
 **How to run**
 1. Start backend (Flask API)
-   a. python app.py
-   b. Runs on http://localhost:5000.
+- python app.py
+- Runs on http://localhost:5000.
    
-2. Start frontend (React UI)
-   a. npm start
-   b. Runs on http://localhost:3000.
+3. Start frontend (React UI)
+- npm start
+- Runs on http://localhost:3000.
 
-3. Workflow:
-   a. Open the React UI in the browser.
-   b. Upload a suspicious video or paste a social media link.
-   c. Backend analyzes frames (brightness, motion, blur, facial stability).
-   d. Results returned: AI score, confidence, risk type, explanation.
-   e. Optionally download PDF report.
+4. Workflow:
+- Open the React UI in the browser.
+- Upload a suspicious video or paste a social media link.
+- Backend analyzes frames (brightness, motion, blur, facial stability).
+- Results returned: AI score, confidence, risk type, explanation.
+- Optionally download PDF report.
 
 💡 **Market & Impact**
 - Over 80% of Malaysians (~33M users) are active on social media, increasing exposure to manipulated content.
