@@ -71,21 +71,24 @@ def download_video_from_url(url: str, output_dir=None) -> tuple:
     platform = get_platform(url)
 
     if platform == 'youtube':
-        # YouTube requires PO tokens on server IPs in 2025.
-        # tv_embedded client bypasses this — it's designed for embedded players
-        # and skips PO token verification for public videos.
+        # yt-dlp 2026.03+ dropped tv_embedded support.
+        # android_vr works without PO token on server IPs.
+        # Fall back through multiple clients in order.
         attempts = [
             {
                 **base_opts,
-                'extractor_args': {'youtube': {'player_client': ['tv_embedded']}},
+                'extractor_args': {'youtube': {'player_client': ['android_vr']}},
             },
             {
                 **base_opts,
-                'extractor_args': {'youtube': {'player_client': ['android_embedded']}},
+                'extractor_args': {'youtube': {'player_client': ['android']}},
             },
             {
                 **base_opts,
-                'extractor_args': {'youtube': {'player_client': ['mweb']}},
+                'extractor_args': {'youtube': {'player_client': ['ios']}},
+            },
+            {
+                **base_opts,
             },
         ]
     else:
