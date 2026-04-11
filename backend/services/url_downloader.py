@@ -71,25 +71,14 @@ def download_video_from_url(url: str, output_dir=None) -> tuple:
     platform = get_platform(url)
 
     if platform == 'youtube':
-        # yt-dlp 2026.03+ dropped tv_embedded support.
-        # android_vr works without PO token on server IPs.
-        # Fall back through multiple clients in order.
+        # Render/server IPs are datacenter IPs — YouTube blocks most clients.
+        # Try every known working client in order of reliability.
         attempts = [
-            {
-                **base_opts,
-                'extractor_args': {'youtube': {'player_client': ['android_vr']}},
-            },
-            {
-                **base_opts,
-                'extractor_args': {'youtube': {'player_client': ['android']}},
-            },
-            {
-                **base_opts,
-                'extractor_args': {'youtube': {'player_client': ['ios']}},
-            },
-            {
-                **base_opts,
-            },
+            {**base_opts, 'extractor_args': {'youtube': {'player_client': ['android_vr']}}},
+            {**base_opts, 'extractor_args': {'youtube': {'player_client': ['android']}}},
+            {**base_opts, 'extractor_args': {'youtube': {'player_client': ['mediaconnect']}}},
+            {**base_opts, 'extractor_args': {'youtube': {'player_client': ['android_vr', 'android', 'mediaconnect']}}},
+            {**base_opts},
         ]
     else:
         # Instagram, TikTok, Facebook — no-cookie attempt works for public content
