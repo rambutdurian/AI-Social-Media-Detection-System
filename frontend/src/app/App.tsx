@@ -86,20 +86,19 @@ export default function App() {
   };
 
   const handleDownloadReport = async () => {
-    if (!currentResult) return;
+    if (!currentResult?.id) {
+      alert('Analysis must be saved before downloading a report.');
+      return;
+    }
     setIsDownloadingReport(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/report/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(currentResult),
-      });
+      const res = await fetch(`${API_URL}/report/${currentResult.id}`);
       if (!res.ok) throw new Error('Download failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `frauda-report-${(currentResult.id ?? 'result').slice(0, 8)}.pdf`;
+      a.download = `frauda-report-${currentResult.id.slice(0, 8)}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
