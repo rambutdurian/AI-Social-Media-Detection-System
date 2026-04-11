@@ -31,7 +31,7 @@ import logo from '../assets/fraudalogo.svg';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-type ContentType = 'general';
+type ContentType = 'general' | 'investment' | 'job' | 'health' | 'news';
 
 interface AnalysisResult {
   id: string;

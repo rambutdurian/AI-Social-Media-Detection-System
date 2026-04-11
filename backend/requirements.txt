@@ -104,7 +104,7 @@ supabase==2.5.0
 supafunc==0.4.7
 sympy==1.14.0
 tbb==2021.13.1
-tensorflow==2.21.0
+tensorflow==2.13.0
 termcolor==3.3.0
 threadpoolctl==3.6.0
 tldextract==5.1.2
