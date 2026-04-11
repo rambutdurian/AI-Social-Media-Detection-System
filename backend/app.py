@@ -13,6 +13,10 @@ from routes.report import report_bp
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+@app.route('/ping')
+def ping():
+    return 'ok', 200
+
 app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_FILE_SIZE_MB', 100)) * 1024 * 1024
 
 app.register_blueprint(analyze_bp)
