@@ -17,6 +17,10 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 def ping():
     return 'ok', 200
 
+@app.route("/health")
+def health():
+    return {"status": "ok"}, 200
+
 app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_FILE_SIZE_MB', 100)) * 1024 * 1024
 
 app.register_blueprint(analyze_bp)

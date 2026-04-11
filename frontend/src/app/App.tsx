@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Shield,
   AlertTriangle,
@@ -80,6 +80,11 @@ export default function App() {
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Wake up Render backend on page load so it's warm before user hits Analyze
+  useEffect(() => {
+    fetch(`${API_URL}/ping`).catch(() => {});
+  }, []);
 
   const handleFileSelect = (file: File, type: 'image' | 'video') => {
     setUploadedFiles(prev => [...prev, { file, type }]);
@@ -572,6 +577,7 @@ export default function App() {
               <span className="flex items-center justify-center gap-2">
                 <Eye className="w-5 h-5 animate-pulse" />
                 Analyzing...
+                <span className="text-xs opacity-70">(may take up to 50s on first run)</span>
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
