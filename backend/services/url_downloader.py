@@ -1,5 +1,5 @@
 """
-URL Downloader — Fixed version with cookie support
+URL Downloader — YouTube Android client bypass + multi-platform support
 Supports: YouTube, TikTok, Instagram, Facebook
 """
 import os
@@ -43,10 +43,12 @@ def download_video_from_url(url: str, output_dir=None) -> tuple:
     Returns (local_file_path, video_title).
     Raises ValueError with user-friendly message on failure.
 
-    Strategy:
-      Attempt 1 — Chrome cookies (required for Instagram/private content)
-      Attempt 2 — Edge cookies (fallback browser)
-      Attempt 3 — No cookies (works for most public YouTube/TikTok)
+    YouTube strategy (server has no browser, so skip cookies):
+      Attempt 1 — Android client (bypasses YouTube bot detection)
+      Attempt 2 — Web client fallback
+
+    Other platforms (Instagram, TikTok, Facebook):
+      Attempt 1 — no cookies (works for public content)
     """
     if not is_supported_url(url):
         raise ValueError(
@@ -66,12 +68,29 @@ def download_video_from_url(url: str, output_dir=None) -> tuple:
         'retries': 3,
     }
 
-    attempts = [
-        {**base_opts, 'cookiesfrombrowser': ('chrome',)},
-        {**base_opts, 'cookiesfrombrowser': ('edge',)},
-        base_opts,
-    ]
+    platform = get_platform(url)
 
+    if platform == 'youtube':
+        # YouTube blocks default yt-dlp web client on server IPs.
+        # Android client bypasses this detection.
+        attempts = [
+            {
+                **base_opts,
+                'extractor_args': {'youtube': {'player_client': ['android']}},
+                'http_headers': {
+                    'User-Agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 12) gzip'
+                },
+            },
+            {
+                **base_opts,
+                'extractor_args': {'youtube': {'player_client': ['web']}},
+            },
+        ]
+    else:
+        # Instagram, TikTok, Facebook — no-cookie attempt works for public content
+        attempts = [base_opts]
+
+    last_err = None
     for opts in attempts:
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -88,12 +107,12 @@ def download_video_from_url(url: str, output_dir=None) -> tuple:
 
         except yt_dlp.utils.DownloadError as e:
             err = str(e).lower()
-            # Immediately surface actionable errors — no point retrying
-            if 'private' in err or 'login' in err or 'unavailable' in err:
-                if 'instagram' in url.lower():
+            last_err = err
+            # Surface actionable errors immediately — no point retrying
+            if 'private' in err or 'login' in err or 'unavailable' in err or 'members only' in err:
+                if platform == 'instagram':
                     raise ValueError(
-                        "Instagram requires login. Please open Chrome, log into Instagram, "
-                        "then try again. Or upload the video file directly."
+                        "Instagram requires login for this video. Upload the video file directly instead."
                     )
                 raise ValueError(
                     "This video is private or unavailable. Please try a public video."
@@ -102,11 +121,15 @@ def download_video_from_url(url: str, output_dir=None) -> tuple:
                 raise ValueError(
                     "This video is blocked due to copyright restrictions. Try a different video."
                 )
-            # Cookie-related or generic error — try next attempt
-        except Exception:
-            pass  # Try next attempt
+            if 'age' in err or 'confirm your age' in err:
+                raise ValueError(
+                    "This video requires age verification. Upload the video file directly instead."
+                )
+            # Generic error — try next attempt
+        except Exception as e:
+            last_err = str(e).lower()
 
     raise ValueError(
-        "Could not download this video after multiple attempts. "
-        "Try uploading the video file directly instead."
+        "Could not download this video. "
+        "For YouTube, try a different public video or upload the file directly."
     )

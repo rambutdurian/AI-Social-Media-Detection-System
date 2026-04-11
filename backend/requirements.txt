@@ -5,7 +5,7 @@ opencv-python-headless==4.10.0.84
 numpy==1.26.4
 supabase==2.9.1
 reportlab==4.2.2
-yt-dlp>=2024.8.6
+yt-dlp>=2025.3.1
 Pillow==10.4.0
 scikit-learn==1.5.1
 requests==2.32.3
