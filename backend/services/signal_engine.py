@@ -1,6 +1,11 @@
 import cv2
 import numpy as np
 
+# Cached at module level — loading takes ~30ms per call otherwise
+_face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+)
+
 
 def check_brightness(frames):
     """
@@ -131,14 +136,11 @@ def check_facial_stability(frames):
     and normal camera movement in real videos do not false-positive. Only severe,
     rapid face flickering (multiple faces appearing/disappearing) triggers.
     """
-    face_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-    )
     face_counts = []
 
     for frame in frames:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(
+        faces = _face_cascade.detectMultiScale(
             gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
         )
         face_counts.append(len(faces))

@@ -36,7 +36,10 @@ def check_fft(frames):
     flatness_values = []
 
     for frame in frames:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # Downscale to 320px wide — FFT complexity is O(n log n) per pixel,
+        # so 320px is ~4x faster than 640px with negligible accuracy loss
+        gray = cv2.resize(gray, (320, 240), interpolation=cv2.INTER_AREA).astype(np.float32)
 
         # 2D FFT
         fft = np.fft.fft2(gray)

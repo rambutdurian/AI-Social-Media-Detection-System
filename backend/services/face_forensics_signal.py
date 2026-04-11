@@ -1,6 +1,10 @@
 import cv2
 import numpy as np
 
+_face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+)
+
 
 def check_face_forensics(frames):
     """
@@ -19,16 +23,12 @@ def check_face_forensics(frames):
     Calibrated on paired real/deepfake videos: catches 4/5 deepfakes
     with 0 false positives on authentic footage.
     """
-    face_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-    )
-
     face_vars = []
     bg_vars = []
 
     for frame in frames:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(
+        faces = _face_cascade.detectMultiScale(
             gray, scaleFactor=1.1, minNeighbors=5, minSize=(50, 50)
         )
         if len(faces) == 0:

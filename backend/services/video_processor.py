@@ -23,6 +23,11 @@ def extract_frames(video_path, fps=1, max_frames=30):
         if not ret:
             break
         if frame_idx % frame_interval == 0:
+            # Downscale to max 640px wide — reduces work for every downstream signal
+            h, w = frame.shape[:2]
+            if w > 640:
+                scale = 640 / w
+                frame = cv2.resize(frame, (640, int(h * scale)), interpolation=cv2.INTER_AREA)
             frames.append(frame)
         frame_idx += 1
 

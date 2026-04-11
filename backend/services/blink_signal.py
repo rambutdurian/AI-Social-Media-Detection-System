@@ -1,6 +1,13 @@
 import cv2
 import numpy as np
 
+_face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+)
+_eye_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_eye.xml'
+)
+
 
 def _eye_aspect_ratio(eye_points):
     """
@@ -37,20 +44,13 @@ def check_blink(frames):
 
     Falls back gracefully if eyes cannot be reliably detected.
     """
-    face_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-    )
-    eye_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + 'haarcascade_eye.xml'
-    )
-
     ear_values = []
     frames_with_face = 0
     frames_with_eyes = 0
 
     for frame in frames:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(
+        faces = _face_cascade.detectMultiScale(
             gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60)
         )
 
@@ -62,7 +62,7 @@ def check_blink(frames):
         x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
         face_roi = gray[y:y + h, x:x + w]
 
-        eyes = eye_cascade.detectMultiScale(
+        eyes = _eye_cascade.detectMultiScale(
             face_roi, scaleFactor=1.1, minNeighbors=3, minSize=(20, 20)
         )
 

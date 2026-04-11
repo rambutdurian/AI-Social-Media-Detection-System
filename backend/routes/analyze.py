@@ -1,5 +1,6 @@
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Blueprint, jsonify, request
 
@@ -65,7 +66,7 @@ def analyze():
             }), 400
 
         # ── Frame extraction ────────────────────────────────────────────
-        frames, frames_analyzed = extract_frames(temp_path, fps=1, max_frames=30)
+        frames, frames_analyzed = extract_frames(temp_path, fps=1, max_frames=15)
 
         if len(frames) == 0:
             return jsonify({
@@ -73,19 +74,30 @@ def analyze():
                          "The file may be corrupted or in an unsupported format."
             }), 400
 
-        # ── Run all detection signals ───────────────────────────────────
-        signal_results = {
-            "brightness":       check_brightness(frames),
-            "temporal":         check_temporal(frames),
-            "blur":             check_blur(frames),
-            "facial_stability": check_facial_stability(frames),
-            "face_forensics":   check_face_forensics(frames),
-            "xception":         check_xception(frames),
-            "fft":              check_fft(frames),
-            "blink":            check_blink(frames),
+        # ── Run all detection signals in parallel ───────────────────────
+        signal_fns = {
+            "brightness":       check_brightness,
+            "temporal":         check_temporal,
+            "blur":             check_blur,
+            "facial_stability": check_facial_stability,
+            "face_forensics":   check_face_forensics,
+            "xception":         check_xception,
+            "fft":              check_fft,
+            "blink":            check_blink,
         }
+        signal_results = {}
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {pool.submit(fn, frames): name for name, fn in signal_fns.items()}
+            for future in as_completed(futures):
+                name = futures[future]
+                signal_results[name] = future.result()
 
         faces_detected = round(signal_results["facial_stability"].get("avg_faces", 0))
+
+        if faces_detected == 0:
+            return jsonify({
+                "error": "No face detected in this video. Our tool works best on videos showing a person speaking directly to camera."
+            }), 400
 
         # ── Score aggregation ───────────────────────────────────────────
         scores = aggregate_score(signal_results)

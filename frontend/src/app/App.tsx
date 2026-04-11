@@ -78,6 +78,7 @@ export default function App() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (file: File, type: 'image' | 'video') => {
@@ -117,6 +118,10 @@ export default function App() {
     if (!link.trim() && !videoFile) return;
 
     setIsAnalyzing(true);
+    setErrorMessage(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
 
     try {
       let response: Response;
@@ -129,6 +134,7 @@ export default function App() {
         response = await fetch(`${API_URL}/analyze`, {
           method: 'POST',
           body: formData,
+          signal: controller.signal,
         });
       } else {
         // URL path
@@ -136,13 +142,19 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: link.trim() }),
+          signal: controller.signal,
         });
+      }
+
+      if (response.status === 413) {
+        setErrorMessage("This file is too big. Try uploading a shorter clip (under 100 MB).");
+        return;
       }
 
       const data = await response.json();
 
       if (!response.ok) {
-        alert(data.error || 'Analysis failed. Please try again.');
+        setErrorMessage(data.error || 'Analysis failed. Please try again.');
         return;
       }
 
@@ -187,8 +199,13 @@ export default function App() {
       setLink('');
       setUploadedFiles([]);
     } catch (err) {
-      alert('Could not reach the analysis server. Make sure the backend is running on port 5000.');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setErrorMessage("Analysis is taking too long. Try uploading a shorter video and try again.");
+      } else {
+        setErrorMessage("Could not reach the analysis server. Check your internet connection and try again.");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setIsAnalyzing(false);
     }
   };
@@ -486,9 +503,17 @@ export default function App() {
             onDrop={(e) => {
               e.preventDefault(); e.stopPropagation(); setDragActive(false);
               const file = e.dataTransfer.files?.[0];
-              if (file && file.type.startsWith('video/')) {
-                setUploadedFiles([{ file, type: 'video' }]);
+              if (!file) return;
+              if (!file.type.startsWith('video/')) {
+                setErrorMessage("Wrong file type. Please upload a video file — MP4, MOV, AVI, or WEBM only.");
+                return;
               }
+              if (file.size > 100 * 1024 * 1024) {
+                setErrorMessage("File is too large. Please upload a video under 100 MB.");
+                return;
+              }
+              setErrorMessage(null);
+              setUploadedFiles([{ file, type: 'video' }]);
             }}
           >
             <input
@@ -498,7 +523,19 @@ export default function App() {
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) setUploadedFiles([{ file, type: 'video' }]);
+                if (!file) return;
+                if (!file.type.startsWith('video/')) {
+                  setErrorMessage("Wrong file type. Please upload a video file — MP4, MOV, AVI, or WEBM only.");
+                  e.target.value = '';
+                  return;
+                }
+                if (file.size > 100 * 1024 * 1024) {
+                  setErrorMessage("File is too large. Please upload a video under 100 MB.");
+                  e.target.value = '';
+                  return;
+                }
+                setErrorMessage(null);
+                setUploadedFiles([{ file, type: 'video' }]);
               }}
             />
             {uploadedFiles.length > 0 ? (
@@ -544,6 +581,20 @@ export default function App() {
               </span>
             )}
           </button>
+
+          {/* Error Banner */}
+          {errorMessage && (
+            <div className="mt-4 bg-red-500/20 border border-red-400/50 text-white px-4 py-3 rounded-xl flex items-start gap-3 animate-in fade-in duration-300">
+              <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <span className="flex-1 text-sm">{errorMessage}</span>
+              <button
+                onClick={() => setErrorMessage(null)}
+                className="text-red-300 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Results Dashboard */}
