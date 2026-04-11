@@ -71,19 +71,21 @@ def download_video_from_url(url: str, output_dir=None) -> tuple:
     platform = get_platform(url)
 
     if platform == 'youtube':
-        # YouTube blocks default yt-dlp web client on server IPs.
-        # Android client bypasses this detection.
+        # YouTube requires PO tokens on server IPs in 2025.
+        # tv_embedded client bypasses this — it's designed for embedded players
+        # and skips PO token verification for public videos.
         attempts = [
             {
                 **base_opts,
-                'extractor_args': {'youtube': {'player_client': ['android']}},
-                'http_headers': {
-                    'User-Agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 12) gzip'
-                },
+                'extractor_args': {'youtube': {'player_client': ['tv_embedded']}},
             },
             {
                 **base_opts,
-                'extractor_args': {'youtube': {'player_client': ['web']}},
+                'extractor_args': {'youtube': {'player_client': ['android_embedded']}},
+            },
+            {
+                **base_opts,
+                'extractor_args': {'youtube': {'player_client': ['mweb']}},
             },
         ]
     else:
