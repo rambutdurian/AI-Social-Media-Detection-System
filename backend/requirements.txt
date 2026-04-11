@@ -3,7 +3,7 @@ flask-cors==4.0.1
 python-dotenv==1.0.1
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
-supabase==2.5.0
+supabase==2.9.1
 reportlab==4.2.2
 yt-dlp>=2024.8.6
 Pillow==10.4.0
